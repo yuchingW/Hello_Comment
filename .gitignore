@@ -1,3 +1,5 @@
 bert_result/
 comments/
 transcripts/
+*.csv
+*.txt
