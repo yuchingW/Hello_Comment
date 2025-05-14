@@ -1,5 +1,6 @@
 bert_result/
-comments/
+comments_data/
 transcripts/
 *.csv
 *.txt
+venv/
