@@ -1,4 +1,4 @@
-# from ckiptagger import data_utils, construct_dictionary, WS, POS, NER
+from ckiptagger import data_utils, construct_dictionary, WS, POS, NER
 import pandas as pd
 import warnings
 import re
@@ -90,87 +90,101 @@ def drop_empty_comments_summary(df):
 
     return df_cleaned
 
-# def process_ckip(cleaned_data):
-#     # load ckiptagger files from google drive
-#     # data_utils.download_data_gdown("./") 
+def process_ckip(cleaned_data):
+    # load ckiptagger files from google drive
+    # data_utils.download_data_gdown("./") 
 
-#     # load ckiptagger model
-#     ws = WS("./data")
-#     pos = POS("./data")
-#     ner = NER("./data")
+    # load ckiptagger model
+    ws = WS("./data")
+    pos = POS("./data")
+    ner = NER("./data")
 
-#     print("-"*20)
-#     print("開始分析 ckip")
+    print("-"*20)
+    print("開始分析 ckip")
     
-#     ckip_data = cleaned_data.reset_index(drop=True)
+    ckip_data = cleaned_data.reset_index(drop=True)
 
-#     ckip_data['ws'] = None
-#     ckip_data['pos'] = None
-#     ckip_data['ner'] = None
-
-#     for i, text in enumerate(ckip_data['cleaned_text']):
-#         print(f">>> Progressing: {i + 1} / {len(ckip_data)}")
-#         try:
-#             if not isinstance(text, str) or text.strip() == '':
-#                 continue
-
-#             # CKIP: WS
-#             try:
-#                 ws_result = ws([text])
-#                 ws_tokens = ws_result[0]
-#                 ckip_data.at[i, 'ws'] = ws_tokens
-#             except Exception as e:
-#                 print(f"[WS Error] 第{i}行: {e}")
-#                 continue  # 若 WS 錯，無法進行 POS/NER，直接跳過
-
-#             # CKIP: POS
-#             try:
-#                 pos_result = pos([ws_tokens])
-#                 ckip_data.at[i, 'pos'] = pos_result[0]
-#             except Exception as e:
-#                 print(f"[POS Error] 第{i}行: {e}")
-
-#             # CKIP: NER
-#             try:
-#                 ner_result = ner([ws_tokens], [pos_result[0]])
-#                 ckip_data.at[i, 'ner'] = list(ner_result[0])
-#             except Exception as e:
-#                 print(f"[NER Error] 第{i}行: {e}")
-
-#             time.sleep(0.5)
-
-#         except Exception as e:
-#             print(f"[General Error] 第{i}行發生錯誤: {e}")
-#             continue
-
-#     # 儲存結果
-#     ckip_data.to_csv('comments_data/ckip_comments.csv', index=False)
-#     print("=== CKIP Done, save to df1_ckip.csv")
-
-#     return ckip_data
+    ckip_data['ws'] = None
+    ckip_data['pos'] = None
+    ckip_data['ner'] = None
 
 
-# def remove_stopwords(df):
-#     # load stopword.txt
-#     with open('stopwords.txt', 'r', encoding='utf-8') as f:
-#         stopwords = f.read().splitlines()
-#         stopwords = [word.strip() for word in stopwords]
-#         print(stopwords)
-#     # remove stopwords
-#     for i, tokens in enumerate(df['ws']):
-#         if isinstance(tokens, list):
-#             df.at[i, 'ws_cleaned'] = [t for t in tokens if t.strip() not in stopwords]
-#             ws_str = ' '.join(df.at[i, 'ws_cleaned'])
-#             df.at[i, 'ws_str'] = ws_str
-#         else:
-#             df.at[i, 'ws_cleaned'] = tokens
-#             df.at[i, 'ws_str'] = tokens
+    grouped = ckip_data.groupby('video_title')
+    for idx, (video_title, group) in enumerate(grouped):
+        if idx == 30:
+            print(f"=== 處理影片: {video_title} (index: {idx}) ===")
+            group = group.reset_index(drop=True)
+            for i, text in enumerate(group['cleaned_text']):
+                print(f">>> Progressing: {i + 1} / {len(group)}")
+                try:
+                    if not isinstance(text, str) or text.strip() == '':
+                        continue
 
-#     # save to csv
-#     df.to_csv('comments_data/comments/ws_str_comments.csv', index=False)
-#     print("=== Removed stopwords, save to ws_str_comments.csv")
+                    # CKIP: WS
+                    try:
+                        ws_result = ws([text])
+                        ws_tokens = ws_result[0]
+                        group.at[i, 'ws'] = ws_tokens
+                    except Exception as e:
+                        print(f"[WS Error] 第{i}行: {e}")
+                        continue  # 若 WS 錯，無法進行 POS/NER，直接跳過
+
+                    # CKIP: POS
+                    try:
+                        pos_result = pos([ws_tokens])
+                        group.at[i, 'pos'] = pos_result[0]
+                    except Exception as e:
+                        print(f"[POS Error] 第{i}行: {e}")
+
+                    # CKIP: NER
+                    try:
+                        ner_result = ner([ws_tokens], [pos_result[0]])
+                        group.at[i, 'ner'] = list(ner_result[0])
+                    except Exception as e:
+                        print(f"[NER Error] 第{i}行: {e}")
+
+                    time.sleep(0.5)
+
+                except Exception as e:
+                    print(f"[General Error] 第{i}行發生錯誤: {e}")
+                    continue
+
+            # 儲存每集結果
+            group.to_csv(f'comments/for_bert/video_{idx}_ckip.csv', index=False)
+            print(f"=== CKIP Done, save to video_{idx}_ckip.csv")
+
+    # 合併所有 group 結果
+    ckip_data = pd.concat([group for _, group in grouped], ignore_index=True)
+
+    # 儲存結果
+    ckip_data.to_csv('comments/for_bert/ckip_comments.csv', index=False)
+    # ckip_data.to_csv('../comments_data/comments/df1_ckip.csv', index=False)
+    print("=== CKIP Done, save to ckip_comments.csv")
+
+    return ckip_data
+
+
+def remove_stopwords(df):
+    # load stopword.txt
+    with open('stopwords.txt', 'r', encoding='utf-8') as f:
+        stopwords = f.read().splitlines()
+        stopwords = [word.strip() for word in stopwords]
+        print(stopwords)
+    # remove stopwords
+    for i, tokens in enumerate(df['ws']):
+        if isinstance(tokens, list):
+            df.at[i, 'ws_cleaned'] = [t for t in tokens if t.strip() not in stopwords]
+            ws_str = ' '.join(df.at[i, 'ws_cleaned'])
+            df.at[i, 'ws_str'] = ws_str
+        else:
+            df.at[i, 'ws_cleaned'] = tokens
+            df.at[i, 'ws_str'] = tokens
+
+    # save to csv
+    df.to_csv('comments_data/comments/ws_str_comments.csv', index=False)
+    print("=== Removed stopwords, save to ws_str_comments.csv")
     
-#     return df
+    return df
 
 
 
@@ -185,11 +199,12 @@ if __name__ == "__main__":
 
     # # 清理留言文字、移除空白row
     # df_cleaned = clean_text(df, name_data)
-    df_cleaned = pd.read_csv('comments_data/cleaned_comments.csv', encoding='utf-8')
-    drop_empty_comments_summary(df_cleaned)
+    # df_cleaned = pd.read_csv('comments_data/cleaned_comments.csv', encoding='utf-8')
+    # drop_empty_comments_summary(df_cleaned)
 
     # # ckip
-    # ckip_data = process_ckip(df_cleaned)
+    df_cleaned = pd.read_csv('comments/dropped_ckip_comments.csv', encoding='utf-8')
+    ckip_data = process_ckip(df_cleaned)
     # print(ckip_data.head(2))
 
     # # remove stopwords

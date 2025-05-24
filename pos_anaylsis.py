@@ -11,16 +11,15 @@ from collections import Counter
 # ignore warning messages
 warnings.filterwarnings("ignore")
 
+
 # 計算top and reply -> 討論串 -> 技術性互動
-def discussion_group(df: pd.DataFrame) -> pd.DataFrame:
+def tag_comment_code(df: pd.DataFrame) -> pd.DataFrame:
     """
-    top_comment: 留言串的第一則
-    vX_gY: 留言串的回覆
+    top_interaction: 留言串的第一則
     single: 沒有任何互動的單一留言
-    reply: @@user_id的留言
+    reply: comment_type == "reply"
+    reply_interaction: @@user_id的留言
     """
-    print(">>> 計算討論串")
-    # 建立 video_id（v）從 1 開始
     video_id_map = {title: idx + 1 for idx, title in enumerate(df['video_title'].unique())}
     df['video_id'] = df['video_title'].map(video_id_map)
 
@@ -32,7 +31,6 @@ def discussion_group(df: pd.DataFrame) -> pd.DataFrame:
         mask = df['video_id'] == vid  # mask是用來抓出特定影片資料
         print(f"=== 處理影片 {vid} ===")
         sub_df = df[mask].reset_index()
-        thread_id = 0
         prev_code = ""
 
         for i in range(len(sub_df)):
@@ -41,8 +39,7 @@ def discussion_group(df: pd.DataFrame) -> pd.DataFrame:
             next_type = sub_df.iloc[i + 1]['comment_type'] if i + 1 < len(sub_df) else None
 
             if current_type == 'top_comment' and next_type == 'reply':
-                thread_id += 1
-                current_row['comment_code'] = f"v{vid}_g{thread_id}"
+                current_row['comment_code'] = "top_interaction"
                 prev_code = current_row['comment_code']
             
             elif current_type == 'top_comment' and next_type == 'top_comment':
@@ -50,7 +47,7 @@ def discussion_group(df: pd.DataFrame) -> pd.DataFrame:
                 prev_code = ""
             
             elif current_type == 'reply':
-                current_row['comment_code'] = prev_code
+                current_row['comment_code'] = "reply"
 
             discussion_results.append(current_row)
     
@@ -58,7 +55,7 @@ def discussion_group(df: pd.DataFrame) -> pd.DataFrame:
     result_df = pd.DataFrame(discussion_results)
     
     # 儲存結果到 CSV
-    result_df.to_csv('comments_data/comments/discussion_group.csv', index=False)
+    result_df.to_csv('comments/face2face_discussion_group.csv', index=False)
     
     return result_df
 
@@ -93,31 +90,10 @@ def count_dc_group(df: pd.DataFrame) -> pd.DataFrame:
         })
 
     result_df = pd.DataFrame(result)
-    result_df.to_csv('comments_data/comments/discussion_counts.csv', index=False)
+    result_df.to_csv('comments/face2face_discussion_counts.csv', index=False)
 
     return result_df
 
-
-
-def clean_text(comment_data):
-    print("-"*20)
-    print(">>> 清理留言文字")
-    comment_data['cleaned_text'] = None
-
-    for i, c in enumerate(comment_data['comment_text']):
-        # print(f"{i+1} / {len(comment_data)}")
-
-        # 移除 HTML 標籤與特殊符號
-        c1 = re.sub(r'<br>|<a href=".*?">.*?</a>|<\/?b>', ' ', str(c))
-        c2 = re.sub(r'[^\w\s,]', ' ', c1)
-        c_cleaned = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fa5@]', ' ', c2)
-
-        comment_data.at[i, 'cleaned_text'] = c_cleaned
-        # print(f"{c} -> {c_cleaned}")
-    
-    cleaned_data = comment_data.to_csv('comments_data/comments/cleaned_comments.csv', index=False)
-
-    return cleaned_data
 
 def drop_empty_comments_summary(df):
     print("-"*20)
@@ -141,8 +117,8 @@ def drop_empty_comments_summary(df):
     drop_count.columns = ['video_title', 'count']
 
     # save diff and dropped data to csv
-    df_cleaned.to_csv('comments_data/comments/dropped_ckip_comments.csv', index=False)
-    drop_count.to_csv('comments_data/dropped_summary.csv', index=False)
+    df_cleaned.to_csv('comments/face2face_dropped_ckip_comments.csv', index=False)
+    drop_count.to_csv('face2face_dropped_summary.csv', index=False)
 
     return df_cleaned
 
@@ -342,16 +318,17 @@ def count_adj(ckip_data):
 
 # 主程式
 if __name__ == "__main__":
-    # # step 1 count discussion group
-    # comment_data = pd.read_csv('comments_data/comments/all_comments.csv')
-    # dc_group = discussion_group(comment_data)
-    # count_dc_group(dc_group)
+    # step 1 count discussion group
+    comment_data = pd.read_csv('comments/face2face_comments_cleaned.csv')
+    dc_group = discussion_group(comment_data)
+    count_dc_group(dc_group)
 
-    # # step 2 clean text
-    # comment_data = clean_text(dc_group)
-    # comment_drop = drop_empty_comments_summary(comment_data)
+    # step 2 clean text
+    comment_data = clean_text(dc_group)
+    comment_drop = drop_empty_comments_summary(comment_data)
     
 
+    exit()
     # # step 3 process ckip
     comment_drop = pd.read_csv('../comments_data/comments/df1_cleaned.csv')
     ckip_data = process_ckip(comment_drop)
