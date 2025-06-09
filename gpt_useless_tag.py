@@ -18,8 +18,12 @@ def gpt_useless_tag(instructions: str, comment_text: str) -> str:
 
     start = time.time()
     class CommentAnalysis(BaseModel):
-        tag: bool  # 是否為無意義留言
-        reason: str  # 無意義留言的原因
+        tag1: bool
+        reason1: str
+        tag2: bool
+        reason2: str
+        tag3: bool
+        reason3: str
 
     try:
         response = client.responses.parse(
@@ -32,12 +36,15 @@ def gpt_useless_tag(instructions: str, comment_text: str) -> str:
         )
 
         result = response.output_parsed
-
         result_dict = {
-            "tag": result.tag,
-            "reason": result.reason
+            "tag1": result.tag1,
+            "reason1": result.reason1,
+            "tag2": result.tag2,
+            "reason2": result.reason2,
+            "tag3": result.tag3,
+            "reason3": result.reason3
         }
-        print(result_dict)
+        print(f">>> tag 結果:\n {result_dict}")
         end = time.time()
         elapsed_time = end - start
         print(f"===> 執行時間：{elapsed_time:.2f}秒")
@@ -50,24 +57,23 @@ def gpt_useless_tag(instructions: str, comment_text: str) -> str:
 
 if __name__ == "__main__":
     for i in range(0, 1):
-        comment_path = f"gpt_tag/video_{i}_ckip_cleaned.csv"
-
+        comment_path = f"hello_comments/for_bert/video_{i}_ckip_cleaned.csv"
         comment_list = pd.read_csv(comment_path, encoding='utf-8')['cleaned_text'].tolist()
+
         test_list = []
-        for comment in comment_list:
+        for idx, comment in enumerate(comment_list, 1):
+            print(f">>>> {idx}/{len(comment_list)}")
             print(f"Comment: {comment}")
-            level_one = gpt_useless_tag(instructoin1, comment)
-            level_two = gpt_useless_tag(instruction2, comment)
-            level_three = gpt_useless_tag(instruction3, comment)
+            tag_res = gpt_useless_tag(instruction_combine, comment)
 
             temp_dict = {
                 "comment_text" : comment,
-                "tag1": level_one['tag'],
-                "reason1": level_one['reason'], 
-                "tag2": level_two['tag'], 
-                "reason2": level_two['reason'],
-                "tag3": level_three['tag'],
-                "reason3": level_three['reason']
+                "tag1": tag_res['tag1'],
+                "reason1": tag_res['reason1'],
+                "tag2": tag_res['tag2'],
+                "reason2": tag_res['reason2'],
+                "tag3": tag_res['tag3'],
+                "reason3": tag_res['reason3']
             }
 
             test_list.append(temp_dict)
