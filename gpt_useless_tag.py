@@ -28,7 +28,7 @@ def gpt_useless_tag(instructions: str, comment_text: str) -> str:
     try:
         response = client.responses.parse(
             # model="gpt-4.1-nano-2025-04-14",
-            model = "gpt-4.1-mini-2025-04-14",
+            model = "gpt-4o-mini",
             input=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": comment_text}
@@ -57,9 +57,20 @@ def gpt_useless_tag(instructions: str, comment_text: str) -> str:
     
 
 if __name__ == "__main__":
-    for i in range(0, 1):
-        comment_path = f"hello_comments/for_bert/video_{i}_ckip_cleaned.csv"
-        comment_list = pd.read_csv(comment_path, encoding='utf-8')['cleaned_text'].tolist()[:100]
+    # video_list = [7, 14, 21, 22, 29, 30, 31]
+    for i in range(0,1):
+        comment_path = f"hello_comments/spam_tag/video_{i}_ckip_spam_tag.csv"
+        print(f">>> Processing video {i}")
+        df = pd.read_csv(comment_path, encoding='utf-8')[:300]
+        print(f">>> 原始留言數量: {len(df)}")
+        comment_list = []
+        for idx, row in df.iterrows():
+            if row['spam_tag'] == 'spam':
+                # print(f"Comment {idx} is spam, skipping...")
+                continue
+            comment_list.append(row['cleaned_text'])
+        
+        print(f">>> 排除留言過短和spammer的留言後，剩下 {len(comment_list)} 條留言")
 
         test_list = []
         for idx, comment in enumerate(comment_list, 1):
@@ -80,4 +91,4 @@ if __name__ == "__main__":
             test_list.append(temp_dict)
         
         test_df = pd.DataFrame(test_list)
-        test_df.to_csv(f"gpt_tag/video_{i}_useless_tag_4-1mini.csv", index=False, encoding='utf-8-sig')
+        test_df.to_csv(f"gpt_tag/video_{i}_useless_tag.csv", index=False, encoding='utf-8-sig')
