@@ -1,94 +1,84 @@
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from gpt_instructions import *
 import pandas as pd
+import asyncio
 import time
-
 
 load_dotenv()
 
 openai_api_key = os.getenv('OPENAI_API_KEY')
 # print(f"OpenAI API Key: {openai_api_key}")
 
-client = OpenAI()
+# 非同步 client
+client = AsyncOpenAI()
 
-def gpt_useless_tag(instructions: str, comment_text: str) -> str:
+file_path = "gpt_tag/video_0_useless_tag.csv"
 
-    start = time.time()
+# 非同步處理單一 prompt
+async def get_useless_response(text, instructions_num):
+
     class CommentAnalysis(BaseModel):
-        tag1: bool
-        reason1: str
-        tag2: bool
-        reason2: str
-        tag3: bool
-        reason3: str
+        tag: bool
+        reason: str
 
     try:
-        response = client.responses.parse(
-            # model="gpt-4.1-nano-2025-04-14",
-            model = "gpt-4o-mini",
-            input=[
-                {"role": "system", "content": instructions},
-                {"role": "user", "content": comment_text}
+        response = await client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": instructions_num},
+                {"role": "user", "content": text}
             ],
-            text_format=CommentAnalysis,
+            response_format= {
+                "type": "json_object",
+            }
+        )
+        result = CommentAnalysis.model_validate_json(response.choices[0].message.content)
+        return {"tag": result.tag, "reason": result.reason}
+
+    except Exception as e:
+        return {"tag": False, "reason": f"分析失敗: {str(e)}"}
+
+# 主處理函式：並行執行三組指令
+async def process_comments(i, comment_df):
+    async_test_df = comment_df.copy()
+
+    for idx, row in comment_df.iterrows():
+        comment_text = row['cleaned_text']
+        print(f"==> 處理第{idx+1}則留言：{comment_text}")
+
+        # 並行處理三組 instructions
+        result1, result2, result3 = await asyncio.gather(
+            get_useless_response(comment_text, instruction1),
+            get_useless_response(comment_text, instruction2),
+            get_useless_response(comment_text, instruction3),
         )
 
-        result = response.output_parsed
-        result_dict = {
-            "tag1": result.tag1,
-            "reason1": result.reason1,
-            "tag2": result.tag2,
-            "reason2": result.reason2,
-            "tag3": result.tag3,
-            "reason3": result.reason3
-        }
-        print(f">>> tag 結果:\n {result_dict}")
-        end = time.time()
-        elapsed_time = end - start
-        print(f"===> 執行時間：{elapsed_time:.2f}秒")
-        return result_dict
-    
-    except Exception as e:
-        print(f"Error: {e}")
-        return {"tag": False, "reason": f"分析失敗: {str(e)}"}
+        # 更新DataFrame
+        async_test_df.at[idx, 'tag1'] = result1['tag']
+        async_test_df.at[idx, 'reason1'] = result1['reason']
+        async_test_df.at[idx, 'tag2'] = result2['tag']
+        async_test_df.at[idx, 'reason2'] = result2['reason']
+        async_test_df.at[idx, 'tag3'] = result3['tag']
+        async_test_df.at[idx, 'reason3'] = result3['reason']
+
+    # 儲存結果
+    async_test_df.to_csv(f"gpt_tag/video_{i}_async_tag.csv", index=False, encoding='utf-8-sig')
+    print(async_test_df.head(5))
     
 
 if __name__ == "__main__":
-    # video_list = [7, 14, 21, 22, 29, 30, 31]
-    for i in range(0,1):
-        comment_path = f"hello_comments/spam_tag/video_{i}_ckip_spam_tag.csv"
-        print(f">>> Processing video {i}")
-        df = pd.read_csv(comment_path, encoding='utf-8')[:300]
-        print(f">>> 原始留言數量: {len(df)}")
-        comment_list = []
-        for idx, row in df.iterrows():
-            if row['spam_tag'] == 'spam':
-                # print(f"Comment {idx} is spam, skipping...")
-                continue
-            comment_list.append(row['cleaned_text'])
-        
-        print(f">>> 排除留言過短和spammer的留言後，剩下 {len(comment_list)} 條留言")
+    for i in range(0, 1):
+        # file_path = f"spam_tag/video_{i}_ckip_spam_tag.csv"
+        file_path = f"spam_tag/comments_spam_tag.csv"
+        df = pd.read_csv(file_path, encoding='utf-8-sig')
+        comment_df = df[df['spam_tag'] != 'spam'][['video_id', 'cleaned_text', 'spam_tag']]
 
-        test_list = []
-        for idx, comment in enumerate(comment_list, 1):
-            print(f">>>> {idx}/{len(comment_list)}")
-            print(f"Comment: {comment}")
-            tag_res = gpt_useless_tag(instruction_combine, comment)
 
-            temp_dict = {
-                "comment_text" : comment,
-                "tag1": tag_res['tag1'],
-                "reason1": tag_res['reason1'],
-                "tag2": tag_res['tag2'],
-                "reason2": tag_res['reason2'],
-                "tag3": tag_res['tag3'],
-                "reason3": tag_res['reason3']
-            }
-
-            test_list.append(temp_dict)
-        
-        test_df = pd.DataFrame(test_list)
-        test_df.to_csv(f"gpt_tag/video_{i}_useless_tag.csv", index=False, encoding='utf-8-sig')
+        # 同步跑三個問題
+        start_time = time.time()
+        asyncio.run(process_comments(i, comment_df[:100]))
+        end_time = time.time()
+        print(f"影片{i}完成，總耗時: {end_time - start_time:.2f} 秒")
