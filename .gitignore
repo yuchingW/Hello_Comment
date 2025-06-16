@@ -1,5 +1,4 @@
 bert_result/
-comments_data/
 transcripts/
 *.csv
 *.txt
@@ -9,9 +8,11 @@ transcripts/
 venv/
 data/
 .env
+data.zip
+.python-version
 batch_input/
-batch_output/
-face_comments/
-for_gpt_tag/
 gpt_tag/
-hello_comments/
+for_gpt_tag/
+
+
+
